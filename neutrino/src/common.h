@@ -82,12 +82,33 @@ static int DYNAMIC = 0;
     }                                      \
 } while (0)
 
+static int env_missing(const char* value) {
+    return value == NULL || value[0] == '\0';
+}
+
+static char* dup_env(const char* key, int required) {
+    const char* value = getenv(key);
+    if (env_missing(value)) {
+        if (required) {
+            fprintf(stderr, "[error] envariable %s not set or empty\n", key);
+            exit(EXIT_FAILURE);
+        }
+        return NULL;
+    }
+    char* copy = strdup(value);
+    if (copy == NULL) {
+        perror("strdup failed");
+        exit(EXIT_FAILURE);
+    }
+    return copy;
+}
+
 // utilities to get the trace folder name
 char* get_tracedir() {
     // First read the parent directory
     char* NEUTRINO_TRACEDIR = getenv("NEUTRINO_TRACEDIR");
-    if (NEUTRINO_TRACEDIR == NULL) {
-        fprintf(stderr, "Environment Variable NEUTRINO_TRACEDIR not set\n");
+    if (env_missing(NEUTRINO_TRACEDIR)) {
+        fprintf(stderr, "Environment Variable NEUTRINO_TRACEDIR not set or empty\n");
         exit(EXIT_FAILURE);
     }
     // check and create folder structure
@@ -170,26 +191,15 @@ void mutex_init(void) { pthread_mutex_init(&mutex, NULL); }
 static void common_init(void) {
     // first verify NEUTRINO_PROBE is set 
     char* NEUTRINO_PROBES = getenv("NEUTRINO_PROBES");
-    if (NEUTRINO_PROBES == NULL) {
-        fprintf(stderr, "[error] envariable NEUTRINO_PROBES not set\n");
+    if (env_missing(NEUTRINO_PROBES)) {
+        fprintf(stderr, "[error] envariable NEUTRINO_PROBES not set or empty\n");
+        exit(EXIT_FAILURE);
     }
     // get environment variables
-    NEUTRINO_REAL_DRIVER = getenv("NEUTRINO_REAL_DRIVER");
-    if (NEUTRINO_REAL_DRIVER == NULL) {
-        fprintf(stderr, "[error] envariable NEUTRINO_REAL_DRIVER not set\n");
-        exit(EXIT_FAILURE);
-    }
-    NEUTRINO_PYTHON = getenv("NEUTRINO_PYTHON");
-    if (NEUTRINO_PYTHON == NULL) {
-        fprintf(stderr, "[error] envariable NEUTRINO_PYTHON not set\n");
-        exit(EXIT_FAILURE);
-    }
-    NEUTRINO_PROBING_PY = getenv("NEUTRINO_PROBING_PY");
-    if (NEUTRINO_PROBING_PY == NULL) {
-        fprintf(stderr, "[error] envariable NEUTRINO_PROBING_PY not set\n");
-        exit(EXIT_FAILURE);
-    }
-    NEUTRINO_CALLBACK = getenv("NEUTRINO_CALLBACK");
+    NEUTRINO_REAL_DRIVER = dup_env("NEUTRINO_REAL_DRIVER", 1);
+    NEUTRINO_PYTHON = dup_env("NEUTRINO_PYTHON", 1);
+    NEUTRINO_PROBING_PY = dup_env("NEUTRINO_PROBING_PY", 1);
+    NEUTRINO_CALLBACK = dup_env("NEUTRINO_CALLBACK", 0);
     // External Feature Controls
     char* dynamic = getenv("NEUTRINO_DYNAMIC");
     if (dynamic != NULL && atoi(dynamic) != 0) {
@@ -257,6 +267,13 @@ static void common_init(void) {
         perror("Can open event.log");
         exit(EXIT_FAILURE);
     }
+    fprintf(
+        event_log,
+        "[init] env REAL_DRIVER=%s PYTHON=%s PROBING_PY=%s\n",
+        NEUTRINO_REAL_DRIVER,
+        NEUTRINO_PYTHON,
+        NEUTRINO_PROBING_PY
+    );
     // print metadata like pid and cmdline
     fprintf(event_log, "[init] pid %d\n", getpid()); // print the process id
     // get command line arguments

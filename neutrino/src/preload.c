@@ -30,6 +30,27 @@ static char* NEUTRINO_REAL_DRIVER = NULL;
 static char* NEUTRINO_HOOK_DRIVER = NULL;
 static char* NEUTRINO_DRIVER_NAME = NULL;
 
+static int env_missing(const char* value) {
+    return value == NULL || value[0] == '\0';
+}
+
+static char* dup_env(const char* key, int required) {
+    const char* value = getenv(key);
+    if (env_missing(value)) {
+        if (required) {
+            fprintf(stderr, "[error] envariable %s not set or empty\n", key);
+            exit(EXIT_FAILURE);
+        }
+        return NULL;
+    }
+    char* copy = strdup(value);
+    if (copy == NULL) {
+        perror("strdup failed");
+        exit(EXIT_FAILURE);
+    }
+    return copy;
+}
+
 /**
  * Provides a hook on both statically or dynamically loading shared library
  * by overwriting dlopen with the same signature as GLIBC dlopen
@@ -50,8 +71,8 @@ void* dlopen(const char *filename, int flags) {
     if (!real_dlopen) 
         real_dlopen = dlsym(RTLD_NEXT, "dlopen");
     
-    if (!NEUTRINO_DRIVER_NAME) {
-        NEUTRINO_DRIVER_NAME = getenv("NEUTRINO_DRIVER_NAME");
+    if (env_missing(NEUTRINO_DRIVER_NAME)) {
+        NEUTRINO_DRIVER_NAME = dup_env("NEUTRINO_DRIVER_NAME",1);
         // fprintf(stderr, "[info] NEUTRINO_DRIVER_NAME: %s\n", NEUTRINO_DRIVER_NAME);
     }   
 
@@ -75,12 +96,8 @@ void* dlopen(const char *filename, int flags) {
         free(strings);
         void* ptr;
         if (call_from_cublas) {
-            if (NEUTRINO_REAL_DRIVER == NULL) {
-                NEUTRINO_REAL_DRIVER = getenv("NEUTRINO_REAL_DRIVER");
-                if (NEUTRINO_REAL_DRIVER == NULL) { // fault
-                    fprintf(stderr, "[error] NEUTRINO_REAL_DRIVER not set\n");
-                    exit(1);
-                }
+            if (env_missing(NEUTRINO_REAL_DRIVER)) {
+                NEUTRINO_REAL_DRIVER = dup_env("NEUTRINO_REAL_DRIVER",1);
             }
             ptr = real_dlopen(NEUTRINO_REAL_DRIVER, flags);
             struct timespec ts;
@@ -89,8 +106,8 @@ void* dlopen(const char *filename, int flags) {
             // printf("[info] %lld cublas use real: %s %p %d\n", time, NEUTRINO_REAL_DRIVER, ptr, flags);
             fflush(stdout);
         } else {
-            char* NEUTRINO_HOOK_DRIVER = getenv("NEUTRINO_HOOK_DRIVER");
-            if (NEUTRINO_HOOK_DRIVER == NULL) {
+            NEUTRINO_HOOK_DRIVER = dup_env("NEUTRINO_HOOK_DRIVER",0);
+            if (env_missing(NEUTRINO_HOOK_DRIVER)) {
                 fprintf(stderr, "[error] NEUTRINO_HOOK_DRIVER not set\n");
                 ptr = real_dlopen(filename, flags); // try to backup
             }

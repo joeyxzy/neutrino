@@ -238,8 +238,9 @@ CUresult cuModuleGetFunction(CUfunction* hfunc, CUmodule hmod, const char* name)
 
     // first update the name
     size_t len = strlen(name);
-    char* managed_name = malloc(len);
+    char* managed_name = malloc(len+1);
     memcpy(managed_name, name, len);
+    managed_name[len] = '\0';
     
     // call real function
     CUresult result = real_cuModuleGetFunction(hfunc, hmod, name);
@@ -274,8 +275,9 @@ CUresult cuLibraryGetKernel(CUkernel* pKernel, CUlibrary library, const char* na
 
     // first update the name
     size_t len = strlen(name);
-    char* managed_name = malloc(len);
+    char* managed_name = malloc(len+1);
     memcpy(managed_name, name, len);
+    managed_name[len] = '\0';
 
     CUresult result = real_cuLibraryGetKernel(pKernel, library, name);
 
